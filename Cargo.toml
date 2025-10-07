@@ -16,6 +16,8 @@ esp-hal = { version = "=1.0.0-rc.0", features = [
   "unstable",
 ] }
 log = "0.4.27"
+defmt-rtt = "1.0.0"
+heapless = "0.9.1"
 
 embassy-net = { version = "0.7.0", features = [
   "dhcpv4",

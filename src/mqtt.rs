@@ -34,13 +34,13 @@ impl MqttFacadeConfig {
     }
 }
 
-pub struct MqttMessage {
-    pub topic: &'static str,
-    pub content: &'static str,
+pub struct MqttMessage<'m> {
+    pub topic: &'m str,
+    pub content: &'m str,
 }
 
-impl MqttMessage {
-    pub fn new(mqtt_topic: &'static str, mqtt_message_content: &'static str) -> Self {
+impl<'m> MqttMessage<'m> {
+    pub fn new(mqtt_topic: &'m str, mqtt_message_content: &'m str) -> Self {
         Self {
             topic: mqtt_topic,
             content: mqtt_message_content,
@@ -67,28 +67,28 @@ impl MqttFacade {
         }
     }
 
-    pub async fn send_message<'stack_lifetime> (
+    pub async fn send_message<'s, 'm> (
         &mut self,
-        stack: &'static Stack<'stack_lifetime>,
-        message: MqttMessage,
+        stack: &'static Stack<'s>,
+        message: MqttMessage<'m>,
     ) {
-        info!("Sending message to host {:?}, port {:?}, topic {:?}, content {:?}",
+        info!("MqttFacade: Sending message to host {:?}, port {:?}, topic {:?}, content {:?}",
             self._config.broker_ip, self._config.broker_port, message.topic, message.content);
         loop {
             if !stack.is_link_up() {
-                info!("Network is down. Waiting..");
+                info!("MqttFacade: Network is down. Waiting..");
                 Timer::after_millis(500).await;
                 continue;
             } else {
-                info!("Network is up!");
+                info!("MqttFacade: Network is up!");
             }
 
             if stack.config_v4().is_none() {
-                info!("DHCP not configured yet. Waiting..");
+                info!("MqttFacade: DHCP not configured yet. Waiting..");
                 Timer::after_millis(500).await;
                 continue;
             } else {
-                info!("DHCP configured!");
+                info!("MqttFacade: DHCP configured!");
             }
             
             let state: TcpClientState<3, BUFFER_SIZE, BUFFER_SIZE> = TcpClientState::new();
@@ -96,11 +96,11 @@ impl MqttFacade {
             let tcp_connection = match tcp_client.connect(SocketAddr::new(
                 self._config.broker_ip, self._config.broker_port)).await {
                 Ok(tcp_connection) => {
-                    info!("TCP connection established");
+                    info!("MqttFacade: TCP connection established");
                     tcp_connection
                 },
                 Err(e) => {
-                    info!("TCP connection failed: {:?}", e);
+                    info!("MqttFacade: TCP connection failed: {:?}", e);
                     Timer::after_millis(500).await;
                     continue;
                 }
@@ -118,9 +118,9 @@ impl MqttFacade {
                 mqtt_client_config,
             );
             match mqtt_client.connect_to_broker().await {
-                Ok(_) => info!("MQTT connection established"),
+                Ok(_) => info!("MqttFacade: MQTT connection established"),
                 Err(e) => {
-                    info!("MQTT connection failed: {:?}", e);
+                    info!("MqttFacade: MQTT connection failed: {:?}", e);
                     Timer::after_millis(500).await;
                     continue;
                 }
@@ -131,11 +131,11 @@ impl MqttFacade {
                 QUALITY_OF_SERVICE, 
                 false).await {
                     Ok(_) => {
-                        info!("Message sent");
+                        info!("MqttFacade: Message sent");
                         break;
                     },
                     Err(e) => {
-                        info!("Message sending failed: {:?}", e);
+                        info!("MqttFacade: Message sending failed: {:?}", e);
                         Timer::after_millis(500).await;
                         continue;
                     }
