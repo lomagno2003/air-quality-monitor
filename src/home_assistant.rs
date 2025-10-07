@@ -26,7 +26,12 @@ impl HomeAssistantFacade {
         }
     }
 
-    pub fn get_state_mqtt_message<'m>(&self, temperature: f32) -> MqttMessage<'m> {
+    pub fn get_state_mqtt_message<'m>(
+        &self, 
+        co2: u16, 
+        humidity: f32, 
+        temperature: f32
+    ) -> MqttMessage<'m> {
         unsafe {
             static mut topic_buffer: String<128> = String::new();
             static mut message_buffer: String<2056> = String::new();
@@ -36,8 +41,11 @@ impl HomeAssistantFacade {
 
             write!(&mut topic_buffer, "homeassistant/device/{}/state", self._config.device_id).unwrap();
             write!(&mut message_buffer,
-                r#"{{"temperature":{}}}"#,
-                temperature).unwrap();
+                r#"{{"temperature":{},"co2":{},"humidity":{}}}"#,
+                temperature,
+                co2,
+                humidity
+            ).unwrap();
 
             return MqttMessage::new(
                 topic_buffer.as_str(),
@@ -49,7 +57,7 @@ impl HomeAssistantFacade {
     pub fn get_device_discovery_mqtt_message<'m>(&self) -> MqttMessage<'m> {
         unsafe {
             static mut topic_buffer: String<128> = String::new();
-            static mut message_buffer: String<2056> = String::new();
+            static mut message_buffer: String<2048> = String::new();
 
             topic_buffer.clear();
             message_buffer.clear();
@@ -73,6 +81,20 @@ impl HomeAssistantFacade {
                             "unit_of_measurement":"°C",
                             "value_template":"{{{{ value_json.temperature}}}}",
                             "unique_id":"temperature"
+                        }},
+                        "carbon_dioxide_component": {{
+                            "p": "sensor",
+                            "device_class":"carbon_dioxide",
+                            "unit_of_measurement":"ppm",
+                            "value_template":"{{{{ value_json.co2}}}}",
+                            "unique_id":"carbon_dioxide"
+                        }},
+                        "humidity_component": {{
+                            "p": "sensor",
+                            "device_class":"humidity",
+                            "unit_of_measurement":"%",
+                            "value_template":"{{{{ value_json.humidity}}}}",
+                            "unique_id":"humidity"
                         }}
                     }},
                     "state_topic":"homeassistant/device/{}/state",

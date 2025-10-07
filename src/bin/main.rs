@@ -16,7 +16,14 @@ use embassy_net::{Stack, StackResources};
 use esp_hal::{
     clock::CpuClock, 
     timer::timg::TimerGroup,
+    i2c::master::{Config, I2c},
+    delay::Delay,
+    time::Rate,
+    gpio::Io,
 };
+
+use scd4x::Scd4x;
+
 
 use air_quality_monitor::wifi::{WiFiFacade, WiFiFacadeConfig};
 use air_quality_monitor::mqtt::{MqttFacade, MqttFacadeConfig};
@@ -86,14 +93,47 @@ async fn main(spawner: Spawner) {
     info!("IP Fetched! Sending MQTT Message..");
     mqtt_facade.send_message(stack, home_assistant.get_device_discovery_mqtt_message()).await;
 
-    let mut var: f32 = 0.0;
-    
-    loop {
-        info!("Sending temp as {:?}", var);
-        mqtt_facade.send_message(stack, home_assistant.get_state_mqtt_message(var)).await;
-        var = var + 1.0;
 
-        Timer::after(Duration::from_secs(1)).await;
+
+
+
+    info!("Configuring Sensor");
+
+    let _io = Io::new(peripherals.IO_MUX);
+    let i2c_config = Config::default().with_frequency(Rate::from_hz(100_000));
+    let i2c = I2c::new(peripherals.I2C0,i2c_config).unwrap();
+    let i2c_with_pins = i2c
+        .with_scl(peripherals.GPIO25)
+        .with_sda(peripherals.GPIO26);
+
+    let delay: Delay = Delay::new();
+    let mut sensor = Scd4x::new(i2c_with_pins, delay);
+
+    sensor.wake_up();
+    sensor.stop_periodic_measurement().unwrap();
+    sensor.reinit().unwrap();
+    sensor.start_periodic_measurement().unwrap();
+    Timer::after(Duration::from_secs(5)).await;
+
+
+
+    loop {
+        Timer::after(Duration::from_secs(5)).await;
+
+        let data: scd4x::types::SensorData = match sensor.measurement() {
+            Ok(data) => data,
+            Err(e) => {
+                info!("Error reading sensor: {:?}", e);
+                Timer::after(Duration::from_secs(1)).await;
+                continue;
+            }
+        };
+
+        mqtt_facade.send_message(stack, home_assistant.get_state_mqtt_message(
+            data.co2,
+            data.humidity,
+            data.temperature
+        )).await;
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin

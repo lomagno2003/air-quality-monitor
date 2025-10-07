@@ -49,7 +49,7 @@ impl<'m> MqttMessage<'m> {
 }
 
 
-const BUFFER_SIZE: usize = 1024;
+const BUFFER_SIZE: usize = 2048;
 const QUALITY_OF_SERVICE: QualityOfService = QualityOfService::QoS1;
 
 pub struct MqttFacade {

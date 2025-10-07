@@ -34,8 +34,8 @@ impl WiFiFacadeConfig {
 
     pub fn from_env() -> Self {
         Self {
-            ssid: option_env!("WIFI_SSID").expect("WIFI_SSID env not provided"),
-            password: option_env!("WIFI_PASSWORD").expect("WIFI_PASSWORD env not provided"),
+            ssid: env!("WIFI_SSID"),
+            password: env!("WIFI_PASSWORD"),
         }
     }
 }
