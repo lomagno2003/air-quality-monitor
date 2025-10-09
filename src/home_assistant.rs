@@ -10,6 +10,12 @@ impl HomeAssistantFacadeConfig {
             device_id: device_id
         }
     }
+
+    pub fn new_from_env() -> Self {
+        Self {
+            device_id: env!("DEVICE_NAME")
+        }
+    }
 }
 
 pub struct HomeAssistantFacade {
@@ -32,7 +38,10 @@ impl HomeAssistantFacade {
         humidity: f32, 
         temperature: f32,
         voc_index: u16,
-        nox_index: u16
+        nox_index: u16,
+        pm1_0_atm: u16,
+        pm2_5_atm: u16,
+        pm10_0_atm: u16
     ) -> MqttMessage<'m> {
         unsafe {
             static mut topic_buffer: String<128> = String::new();
@@ -43,12 +52,15 @@ impl HomeAssistantFacade {
 
             write!(&mut topic_buffer, "homeassistant/device/{}/state", self._config.device_id).unwrap();
             write!(&mut message_buffer,
-                r#"{{"temperature":{},"co2":{},"humidity":{},"voc_index":{},"nox_index":{}}}"#,
+                r#"{{"temperature":{},"co2":{},"humidity":{},"voc_index":{},"nox_index":{},"pm1_0_atm":{},"pm2_5_atm":{},"pm10_0_atm":{}}}"#,
                 temperature,
                 co2,
                 humidity,
                 voc_index,
-                nox_index
+                nox_index,
+                pm1_0_atm,
+                pm2_5_atm,
+                pm10_0_atm
             ).unwrap();
 
             return MqttMessage::new(
@@ -113,6 +125,27 @@ impl HomeAssistantFacade {
                             "device_class":"aqi",
                             "value_template":"{{{{ value_json.nox_index}}}}",
                             "unique_id":"nox_index"
+                        }},
+                        "pm1_0_atm_component": {{
+                            "p": "sensor",
+                            "device_class":"pm1",
+                            "unit_of_measurement":"µg/m³",
+                            "value_template":"{{{{ value_json.pm1_0_atm}}}}",
+                            "unique_id":"pm1"
+                        }},
+                        "pm2_5_atm_component": {{
+                            "p": "sensor",
+                            "device_class":"pm25",
+                            "unit_of_measurement":"µg/m³",
+                            "value_template":"{{{{ value_json.pm2_5_atm}}}}",
+                            "unique_id":"pm25"
+                        }},
+                        "pm10_0_atm_component": {{
+                            "p": "sensor",
+                            "device_class":"pm10",
+                            "unit_of_measurement":"µg/m³",
+                            "value_template":"{{{{ value_json.pm10_0_atm}}}}",
+                            "unique_id":"pm10"
                         }}
                     }},
                     "state_topic":"homeassistant/device/{}/state",

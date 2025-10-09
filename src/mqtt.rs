@@ -92,15 +92,16 @@ impl MqttFacade {
                 continue;
             } else {
                 info!("MqttFacade: DHCP configured!");
+                Timer::after_millis(1000).await;
             }
             
             info!("MqttFacade: Creating TCP client state...");
             let state: TcpClientState<3, TCP_SEND_BUFFER_SIZE, TCP_RECV_BUFFER_SIZE> = TcpClientState::new();
             info!("MqttFacade: TCP client state created");
-            
+
             let tcp_client = TcpClient::new(*stack, &state);
             info!("MqttFacade: TCP client created, attempting connection...");
-            
+
             let tcp_connection = match tcp_client.connect(SocketAddr::new(
                 self._config.broker_ip, self._config.broker_port)).await {
                 Ok(tcp_connection) => {

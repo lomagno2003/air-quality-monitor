@@ -23,6 +23,7 @@ dependencies = [
  "esp-wifi",
  "heapless 0.9.1",
  "log",
+ "pmsx003",
  "rust-mqtt",
  "scd4x",
  "sgp4x",
@@ -1154,6 +1155,15 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "pmsx003"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a08e298d93c09073558034da36ec84ea254bb5a20ce238a78f26694da9b4b01"
+dependencies = [
+ "embedded-io",
+]
 
 [[package]]
 name = "portable-atomic"

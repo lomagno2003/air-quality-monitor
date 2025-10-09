@@ -6,7 +6,7 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use log::info;
+use log::{info, error};
 use defmt_rtt as _;
 use static_cell::StaticCell;
 
@@ -24,6 +24,7 @@ use esp_hal::{
 
 use scd4x::Scd4x;
 use sgp4x::Sgp41;
+use pmsx003::PmsX003Sensor;
 
 use air_quality_monitor::wifi::{WiFiFacade, WiFiFacadeConfig};
 use air_quality_monitor::mqtt::{MqttFacade, MqttFacadeConfig};
@@ -88,8 +89,8 @@ async fn main(spawner: Spawner) {
     info!("Got IP: {} and Port: {}", ip, port);
 
     let mut mqtt_facade: MqttFacade = MqttFacade::new(MqttFacadeConfig::new(ip, port, "MyDevice"));
-    
-    let home_assistant: HomeAssistantFacade = HomeAssistantFacade::new(HomeAssistantFacadeConfig::new("MyDevice"));
+    let home_assistant: HomeAssistantFacade = HomeAssistantFacade::new(HomeAssistantFacadeConfig::new_from_env());
+
     info!("IP Fetched! Sending MQTT Message..");
     mqtt_facade.send_message(stack, home_assistant.get_device_discovery_mqtt_message()).await;
 
@@ -112,7 +113,6 @@ async fn main(spawner: Spawner) {
     scd41_sensor.stop_periodic_measurement().unwrap();
     scd41_sensor.reinit().unwrap();
     scd41_sensor.start_periodic_measurement().unwrap();
-    Timer::after(Duration::from_secs(5)).await;
 
 
 
@@ -122,23 +122,29 @@ async fn main(spawner: Spawner) {
         .with_scl(peripherals.GPIO22)
         .with_sda(peripherals.GPIO23);
     let mut sgp41_sensor = Sgp41::new(sgp41_i2c_with_pins, 0x59, delay);
-    info!("Starting SGP41 conditioning...");
+    info!("SGP41: Starting conditioning...");
     for i in 0..10 {
         if let Ok(voc_raw) = sgp41_sensor.execute_conditioning() {
-            info!("Conditioning step {}: VOC raw = {}", i + 1, voc_raw);
+            info!("SGP41: Conditioning step {}: VOC raw = {}", i + 1, voc_raw);
         } else {
-            info!("Conditioning failed at step {}", i + 1);
+            info!("SGP41: Conditioning failed at step {}", i + 1);
         }
         Timer::after(Duration::from_secs(1)).await;
     }
-    info!("Conditioning complete!");
 
 
-
+    info!("Configuring PMS5003 Sensor");
+    let config = esp_hal::uart::Config::default().with_baudrate(9600);
+    let uart = esp_hal::uart::Uart::new(peripherals.UART2, config).unwrap()
+        .with_rx(peripherals.GPIO16)
+        .with_tx(peripherals.GPIO17);
+    let mut pms5003_sensor = PmsX003Sensor::new(uart);
+    pms5003_sensor.sleep().unwrap();
 
     loop {
         Timer::after(Duration::from_secs(5)).await;
 
+        info!("Reading from SCD41");
         let scd41_data: scd4x::types::SensorData = match scd41_sensor.measurement() {
             Ok(data) => data,
             Err(e) => {
@@ -148,6 +154,7 @@ async fn main(spawner: Spawner) {
             }
         };
 
+        info!("Reading from SGP41");
         let (sgp_41_voc, sgp_41_nox) = match sgp41_sensor.measure_indices() {
             Ok((voc, nox)) => (voc, nox),
             Err(e) => {
@@ -157,12 +164,42 @@ async fn main(spawner: Spawner) {
             }
         };
 
+        info!("Reading from PMS5003");
+        pms5003_sensor.wake().unwrap();
+        let pms5003_data = match pms5003_sensor.read() {
+            Ok(frame) => {
+                info!("✓ Successfully read sensor data:");
+                info!("  PM1.0:  {} μg/m³", frame.pm1_0);
+                info!("  PM2.5:  {} μg/m³", frame.pm2_5);
+                info!("  PM10:   {} μg/m³", frame.pm10);
+                info!("  PM1.0 (atmospheric): {} μg/m³", frame.pm1_0_atm);
+                info!("  PM2.5 (atmospheric): {} μg/m³", frame.pm2_5_atm);
+                info!("  PM10  (atmospheric): {} μg/m³", frame.pm10_atm);
+                info!("  Particles > 0.3μm: {} per 0.1L", frame.beyond_0_3);
+                info!("  Particles > 0.5μm: {} per 0.1L", frame.beyond_0_5);
+                info!("  Particles > 1.0μm: {} per 0.1L", frame.beyond_1_0);
+                info!("  Particles > 2.5μm: {} per 0.1L", frame.beyond_2_5);
+                info!("  Particles > 5.0μm: {} per 0.1L", frame.beyond_5_0);
+                info!("  Particles > 10μm:  {} per 0.1L", frame.beyond_10_0);
+
+                frame
+            }
+            Err(e) => {
+                error!("✗ Failed to read sensor: {:?}", e);
+                continue;
+            }
+        };
+        pms5003_sensor.sleep().unwrap();
+
         mqtt_facade.send_message(stack, home_assistant.get_state_mqtt_message(
             scd41_data.co2,
             scd41_data.humidity,
             scd41_data.temperature,
             sgp_41_voc,
-            sgp_41_nox
+            sgp_41_nox,
+            pms5003_data.pm1_0_atm,
+            pms5003_data.pm2_5_atm,
+            pms5003_data.pm10_atm
         )).await;
     }
 
