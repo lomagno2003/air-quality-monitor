@@ -49,21 +49,24 @@ impl<'m> MqttMessage<'m> {
 }
 
 
-const BUFFER_SIZE: usize = 2048;
+const MQTT_SEND_BUFFER_SIZE: usize = 4096;
+const MQTT_RECV_BUFFER_SIZE: usize = 2048;
+const TCP_SEND_BUFFER_SIZE: usize = 4096;
+const TCP_RECV_BUFFER_SIZE: usize = 2048;
 const QUALITY_OF_SERVICE: QualityOfService = QualityOfService::QoS1;
 
 pub struct MqttFacade {
     _config: MqttFacadeConfig,
-    _send_buffer: [u8; BUFFER_SIZE],
-    _receive_buffer: [u8; BUFFER_SIZE],
+    _send_buffer: [u8; MQTT_SEND_BUFFER_SIZE],
+    _receive_buffer: [u8; MQTT_RECV_BUFFER_SIZE],
 }
 
 impl MqttFacade {
     pub fn new(config: MqttFacadeConfig) -> Self {
         Self {
             _config: config,
-            _send_buffer: [0_u8; BUFFER_SIZE],
-            _receive_buffer: [0_u8; BUFFER_SIZE],
+            _send_buffer: [0_u8; MQTT_SEND_BUFFER_SIZE],
+            _receive_buffer: [0_u8; MQTT_RECV_BUFFER_SIZE],
         }
     }
 
@@ -91,12 +94,17 @@ impl MqttFacade {
                 info!("MqttFacade: DHCP configured!");
             }
             
-            let state: TcpClientState<3, BUFFER_SIZE, BUFFER_SIZE> = TcpClientState::new();
+            info!("MqttFacade: Creating TCP client state...");
+            let state: TcpClientState<3, TCP_SEND_BUFFER_SIZE, TCP_RECV_BUFFER_SIZE> = TcpClientState::new();
+            info!("MqttFacade: TCP client state created");
+            
             let tcp_client = TcpClient::new(*stack, &state);
+            info!("MqttFacade: TCP client created, attempting connection...");
+            
             let tcp_connection = match tcp_client.connect(SocketAddr::new(
                 self._config.broker_ip, self._config.broker_port)).await {
                 Ok(tcp_connection) => {
-                    info!("MqttFacade: TCP connection established");
+                    info!("MqttFacade: TCP connection established successfully");
                     tcp_connection
                 },
                 Err(e) => {
@@ -106,25 +114,28 @@ impl MqttFacade {
                 }
             };
 
+            info!("MqttFacade: Creating MQTT client...");
             let mut mqtt_client_config: ClientConfig<'_, 5, CountingRng> =
                 ClientConfig::new(MqttVersion::MQTTv5, CountingRng(12345));
             mqtt_client_config.add_client_id(self._config.client_id);
-            let mut mqtt_client: MqttClient<'_, embassy_net::tcp::client::TcpConnection<'_, 3, BUFFER_SIZE, BUFFER_SIZE>, 5, CountingRng> = MqttClient::new(
+            let mut mqtt_client = MqttClient::new(
                 tcp_connection,
                 &mut self._send_buffer,
-                BUFFER_SIZE,
+                MQTT_SEND_BUFFER_SIZE,
                 &mut self._receive_buffer,
-                BUFFER_SIZE,
+                MQTT_RECV_BUFFER_SIZE,
                 mqtt_client_config,
             );
+            info!("MqttFacade: MQTT client created, attempting broker connection...");
             match mqtt_client.connect_to_broker().await {
-                Ok(_) => info!("MqttFacade: MQTT connection established"),
+                Ok(_) => info!("MqttFacade: MQTT broker connection established"),
                 Err(e) => {
-                    info!("MqttFacade: MQTT connection failed: {:?}", e);
+                    info!("MqttFacade: MQTT broker connection failed: {:?}", e);
                     Timer::after_millis(500).await;
                     continue;
                 }
             };
+            info!("MqttFacade: Attempting to send message...");
             match mqtt_client.send_message(
                 message.topic, 
                 message.content.as_bytes(), 

@@ -36,7 +36,7 @@ impl HomeAssistantFacade {
     ) -> MqttMessage<'m> {
         unsafe {
             static mut topic_buffer: String<128> = String::new();
-            static mut message_buffer: String<2056> = String::new();
+            static mut message_buffer: String<1024> = String::new();
 
             topic_buffer.clear();
             message_buffer.clear();
@@ -61,7 +61,7 @@ impl HomeAssistantFacade {
     pub fn get_device_discovery_mqtt_message<'m>(&self) -> MqttMessage<'m> {
         unsafe {
             static mut topic_buffer: String<128> = String::new();
-            static mut message_buffer: String<2048> = String::new();
+            static mut message_buffer: String<4096> = String::new();
 
             topic_buffer.clear();
             message_buffer.clear();
@@ -99,6 +99,20 @@ impl HomeAssistantFacade {
                             "unit_of_measurement":"%",
                             "value_template":"{{{{ value_json.humidity}}}}",
                             "unique_id":"humidity"
+                        }},
+                        "voc_index_component": {{
+                            "p": "sensor",
+                            "name": "VOC index",
+                            "device_class":"aqi",
+                            "value_template":"{{{{ value_json.voc_index}}}}",
+                            "unique_id":"voc_index"
+                        }},
+                        "nox_index_component": {{
+                            "p": "sensor",
+                            "name": "NOx index",
+                            "device_class":"aqi",
+                            "value_template":"{{{{ value_json.nox_index}}}}",
+                            "unique_id":"nox_index"
                         }}
                     }},
                     "state_topic":"homeassistant/device/{}/state",
