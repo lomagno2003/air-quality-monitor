@@ -71,6 +71,7 @@ rust-mqtt = { version = "0.3.0", default-features = false, features = ["no_std"]
 
 # Sensors
 scd4x = { version = "0.4.1", features = ["scd41"] }
+sgp4x = "1.0.0"
 
 [profile.dev]
 # Rust debug is too slow.

@@ -30,7 +30,9 @@ impl HomeAssistantFacade {
         &self, 
         co2: u16, 
         humidity: f32, 
-        temperature: f32
+        temperature: f32,
+        voc_index: u16,
+        nox_index: u16
     ) -> MqttMessage<'m> {
         unsafe {
             static mut topic_buffer: String<128> = String::new();
@@ -41,10 +43,12 @@ impl HomeAssistantFacade {
 
             write!(&mut topic_buffer, "homeassistant/device/{}/state", self._config.device_id).unwrap();
             write!(&mut message_buffer,
-                r#"{{"temperature":{},"co2":{},"humidity":{}}}"#,
+                r#"{{"temperature":{},"co2":{},"humidity":{},"voc_index":{},"nox_index":{}}}"#,
                 temperature,
                 co2,
-                humidity
+                humidity,
+                voc_index,
+                nox_index
             ).unwrap();
 
             return MqttMessage::new(

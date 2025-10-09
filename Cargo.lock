@@ -25,6 +25,7 @@ dependencies = [
  "log",
  "rust-mqtt",
  "scd4x",
+ "sgp4x",
  "smoltcp",
  "static_cell",
 ]
@@ -930,6 +931,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gas-index-algorithm"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98e5070de8ff479dc9aa9b86da6d36ae0aefe101a11c950356b58315fbd31168"
+dependencies = [
+ "micromath",
+]
+
+[[package]]
 name = "gcd"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1085,6 +1095,12 @@ name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+
+[[package]]
+name = "micromath"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3c8dda44ff03a2f238717214da50f65d5a53b45cd213a7370424ffdb6fae815"
 
 [[package]]
 name = "nb"
@@ -1363,6 +1379,17 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "sgp4x"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9713ca5aa5218b9c19dc64f06e9a8dfe735379035efb42b93fd52ec8c080ed2d"
+dependencies = [
+ "embedded-hal 1.0.0",
+ "gas-index-algorithm",
+ "sensirion-i2c",
 ]
 
 [[package]]

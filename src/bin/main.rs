@@ -23,7 +23,7 @@ use esp_hal::{
 };
 
 use scd4x::Scd4x;
-
+use sgp4x::Sgp41;
 
 use air_quality_monitor::wifi::{WiFiFacade, WiFiFacadeConfig};
 use air_quality_monitor::mqtt::{MqttFacade, MqttFacadeConfig};
@@ -94,45 +94,75 @@ async fn main(spawner: Spawner) {
     mqtt_facade.send_message(stack, home_assistant.get_device_discovery_mqtt_message()).await;
 
 
-
-
-
-    info!("Configuring Sensor");
-
+    info!("Configuring Sensors");
     let _io = Io::new(peripherals.IO_MUX);
     let i2c_config = Config::default().with_frequency(Rate::from_hz(100_000));
-    let i2c = I2c::new(peripherals.I2C0,i2c_config).unwrap();
-    let i2c_with_pins = i2c
+
+
+    info!("Configuring SCD41 Sensor");
+    let scd_41_i2c = I2c::new(peripherals.I2C0,i2c_config).unwrap();
+    let scd_41_i2c_with_pins = scd_41_i2c
         .with_scl(peripherals.GPIO25)
         .with_sda(peripherals.GPIO26);
 
     let delay: Delay = Delay::new();
-    let mut sensor = Scd4x::new(i2c_with_pins, delay);
+    let mut scd41_sensor = Scd4x::new(scd_41_i2c_with_pins, delay);
 
-    sensor.wake_up();
-    sensor.stop_periodic_measurement().unwrap();
-    sensor.reinit().unwrap();
-    sensor.start_periodic_measurement().unwrap();
+    scd41_sensor.wake_up();
+    scd41_sensor.stop_periodic_measurement().unwrap();
+    scd41_sensor.reinit().unwrap();
+    scd41_sensor.start_periodic_measurement().unwrap();
     Timer::after(Duration::from_secs(5)).await;
+
+
+
+    info!("Configuring SGP41 Sensor");
+    let sgp41_i2c = I2c::new(peripherals.I2C1,i2c_config).unwrap();
+    let sgp41_i2c_with_pins = sgp41_i2c
+        .with_scl(peripherals.GPIO22)
+        .with_sda(peripherals.GPIO23);
+    let mut sgp41_sensor = Sgp41::new(sgp41_i2c_with_pins, 0x59, delay);
+    info!("Starting SGP41 conditioning...");
+    for i in 0..10 {
+        if let Ok(voc_raw) = sgp41_sensor.execute_conditioning() {
+            info!("Conditioning step {}: VOC raw = {}", i + 1, voc_raw);
+        } else {
+            info!("Conditioning failed at step {}", i + 1);
+        }
+        Timer::after(Duration::from_secs(1)).await;
+    }
+    info!("Conditioning complete!");
+
 
 
 
     loop {
         Timer::after(Duration::from_secs(5)).await;
 
-        let data: scd4x::types::SensorData = match sensor.measurement() {
+        let scd41_data: scd4x::types::SensorData = match scd41_sensor.measurement() {
             Ok(data) => data,
             Err(e) => {
-                info!("Error reading sensor: {:?}", e);
+                info!("Error reading SCP41 sensor: {:?}", e);
+                Timer::after(Duration::from_secs(1)).await;
+                continue;
+            }
+        };
+
+        let (sgp_41_voc, sgp_41_nox) = match sgp41_sensor.measure_indices() {
+            Ok((voc, nox)) => (voc, nox),
+            Err(e) => {
+                info!("Error reading SGP41 sensor: {:?}", e);
                 Timer::after(Duration::from_secs(1)).await;
                 continue;
             }
         };
 
         mqtt_facade.send_message(stack, home_assistant.get_state_mqtt_message(
-            data.co2,
-            data.humidity,
-            data.temperature
+            scd41_data.co2,
+            scd41_data.humidity,
+            scd41_data.temperature,
+            sgp_41_voc,
+            sgp_41_nox
         )).await;
     }
 
