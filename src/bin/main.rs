@@ -85,7 +85,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(net_task(_runner)).unwrap();
     
     info!("Wifi connected! Fetching broker using mDNS...");
-    let (ip, port) = mdns.query_service("_mqtt._tcp.local", stack).await;
+    let (ip, port) = mdns.query_service(env!("MQTT_SERVICE"), stack).await;
     info!("Got IP: {} and Port: {}", ip, port);
 
     let mut mqtt_facade: MqttFacade = MqttFacade::new(MqttFacadeConfig::new(ip, port, "MyDevice"));
