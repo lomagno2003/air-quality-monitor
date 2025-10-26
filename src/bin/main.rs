@@ -103,8 +103,8 @@ async fn main(spawner: Spawner) {
     info!("Configuring SCD41 Sensor");
     let scd_41_i2c = I2c::new(peripherals.I2C0,i2c_config).unwrap();
     let scd_41_i2c_with_pins = scd_41_i2c
-        .with_scl(peripherals.GPIO25)
-        .with_sda(peripherals.GPIO26);
+        .with_scl(peripherals.GPIO18)
+        .with_sda(peripherals.GPIO19);
 
     let delay: Delay = Delay::new();
     let mut scd41_sensor = Scd4x::new(scd_41_i2c_with_pins, delay);
@@ -113,7 +113,6 @@ async fn main(spawner: Spawner) {
     scd41_sensor.stop_periodic_measurement().unwrap();
     scd41_sensor.reinit().unwrap();
     scd41_sensor.start_periodic_measurement().unwrap();
-
 
 
     info!("Configuring SGP41 Sensor");
@@ -136,36 +135,15 @@ async fn main(spawner: Spawner) {
     info!("Configuring PMS5003 Sensor");
     let config = esp_hal::uart::Config::default().with_baudrate(9600);
     let uart = esp_hal::uart::Uart::new(peripherals.UART2, config).unwrap()
-        .with_rx(peripherals.GPIO16)
-        .with_tx(peripherals.GPIO17);
+        .with_rx(peripherals.GPIO17)
+        .with_tx(peripherals.GPIO16);
     let mut pms5003_sensor = PmsX003Sensor::new(uart);
-    pms5003_sensor.sleep().unwrap();
+    pms5003_sensor.wake().unwrap();
+
+    let mut loop_counter = 0;
 
     loop {
-        Timer::after(Duration::from_secs(5)).await;
-
-        info!("Reading from SCD41");
-        let scd41_data: scd4x::types::SensorData = match scd41_sensor.measurement() {
-            Ok(data) => data,
-            Err(e) => {
-                info!("Error reading SCP41 sensor: {:?}", e);
-                Timer::after(Duration::from_secs(1)).await;
-                continue;
-            }
-        };
-
-        info!("Reading from SGP41");
-        let (sgp_41_voc, sgp_41_nox) = match sgp41_sensor.measure_indices() {
-            Ok((voc, nox)) => (voc, nox),
-            Err(e) => {
-                info!("Error reading SGP41 sensor: {:?}", e);
-                Timer::after(Duration::from_secs(1)).await;
-                continue;
-            }
-        };
-
         info!("Reading from PMS5003");
-        pms5003_sensor.wake().unwrap();
         let pms5003_data = match pms5003_sensor.read() {
             Ok(frame) => {
                 info!("✓ Successfully read sensor data:");
@@ -189,18 +167,42 @@ async fn main(spawner: Spawner) {
                 continue;
             }
         };
-        pms5003_sensor.sleep().unwrap();
 
-        mqtt_facade.send_message(stack, home_assistant.get_state_mqtt_message(
-            scd41_data.co2,
-            scd41_data.humidity,
-            scd41_data.temperature,
-            sgp_41_voc,
-            sgp_41_nox,
-            pms5003_data.pm1_0_atm,
-            pms5003_data.pm2_5_atm,
-            pms5003_data.pm10_atm
-        )).await;
+        if loop_counter > 4 {
+            info!("Reading from SCD41");
+            let scd41_data: scd4x::types::SensorData = match scd41_sensor.measurement() {
+                Ok(data) => data,
+                Err(e) => {
+                    info!("Error reading SCP41 sensor: {:?}", e);
+                    Timer::after(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+
+            info!("Reading from SGP41");
+            let (sgp_41_voc, sgp_41_nox) = match sgp41_sensor.measure_indices() {
+                Ok((voc, nox)) => (voc, nox),
+                Err(e) => {
+                    info!("Error reading SGP41 sensor: {:?}", e);
+                    Timer::after(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+
+            mqtt_facade.send_message(stack, home_assistant.get_state_mqtt_message(
+                scd41_data.co2,
+                scd41_data.humidity,
+                scd41_data.temperature,
+                sgp_41_voc,
+                sgp_41_nox,
+                pms5003_data.pm1_0_atm,
+                pms5003_data.pm2_5_atm,
+                pms5003_data.pm10_atm
+            )).await;
+            loop_counter = 0;
+        }
+
+        loop_counter += 1;
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-rc.0/examples/src/bin

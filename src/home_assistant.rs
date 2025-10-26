@@ -1,19 +1,22 @@
 use crate::mqtt::{MqttMessage};
 
 pub struct HomeAssistantFacadeConfig {
-    device_id: &'static str
+    device_id: &'static str,
+    device_name: &'static str
 }
 
 impl HomeAssistantFacadeConfig {
-    pub fn new(device_id: &'static str) -> Self {
+    pub fn new(device_id: &'static str, device_name: &'static str) -> Self {
         Self {
-            device_id: device_id
+            device_id: device_id,
+            device_name: device_name
         }
     }
 
     pub fn new_from_env() -> Self {
         Self {
-            device_id: env!("DEVICE_NAME")
+            device_id: env!("DEVICE_ID"),
+            device_name: env!("DEVICE_NAME")
         }
     }
 }
@@ -83,7 +86,7 @@ impl HomeAssistantFacade {
                 r#"{{
                     "dev": {{
                         "ids": "{}",
-                        "name": "AirQualityDevice"
+                        "name": "{}"
                     }},
                     "o": {{
                         "name":"air-quality-monitor",
@@ -96,62 +99,72 @@ impl HomeAssistantFacade {
                             "device_class":"temperature",
                             "unit_of_measurement":"°C",
                             "value_template":"{{{{ value_json.temperature}}}}",
-                            "unique_id":"temperature"
+                            "unique_id":"{}_temperature"
                         }},
                         "carbon_dioxide_component": {{
                             "p": "sensor",
                             "device_class":"carbon_dioxide",
                             "unit_of_measurement":"ppm",
                             "value_template":"{{{{ value_json.co2}}}}",
-                            "unique_id":"carbon_dioxide"
+                            "unique_id":"{}_co2"
                         }},
                         "humidity_component": {{
                             "p": "sensor",
                             "device_class":"humidity",
                             "unit_of_measurement":"%",
                             "value_template":"{{{{ value_json.humidity}}}}",
-                            "unique_id":"humidity"
+                            "unique_id":"{}_humidity"
                         }},
                         "voc_index_component": {{
                             "p": "sensor",
                             "name": "VOC index",
                             "device_class":"aqi",
                             "value_template":"{{{{ value_json.voc_index}}}}",
-                            "unique_id":"voc_index"
+                            "unique_id":"{}_voc_index"
                         }},
                         "nox_index_component": {{
                             "p": "sensor",
                             "name": "NOx index",
                             "device_class":"aqi",
                             "value_template":"{{{{ value_json.nox_index}}}}",
-                            "unique_id":"nox_index"
+                            "unique_id":"{}_nox_index"
                         }},
                         "pm1_0_atm_component": {{
                             "p": "sensor",
                             "device_class":"pm1",
                             "unit_of_measurement":"µg/m³",
                             "value_template":"{{{{ value_json.pm1_0_atm}}}}",
-                            "unique_id":"pm1"
+                            "unique_id":"{}_pm1"
                         }},
                         "pm2_5_atm_component": {{
                             "p": "sensor",
                             "device_class":"pm25",
                             "unit_of_measurement":"µg/m³",
                             "value_template":"{{{{ value_json.pm2_5_atm}}}}",
-                            "unique_id":"pm25"
+                            "unique_id":"{}_pm2_5"
                         }},
                         "pm10_0_atm_component": {{
                             "p": "sensor",
                             "device_class":"pm10",
                             "unit_of_measurement":"µg/m³",
                             "value_template":"{{{{ value_json.pm10_0_atm}}}}",
-                            "unique_id":"pm10"
+                            "unique_id":"{}_pm10"
                         }}
                     }},
                     "state_topic":"homeassistant/device/{}/state",
                     "qos": 2
                 }}"#,
-                self._config.device_id, self._config.device_id).unwrap();
+                self._config.device_id, 
+                self._config.device_name, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id, 
+                self._config.device_id).unwrap();
 
             return MqttMessage::new(
                 topic_buffer.as_str(), 
